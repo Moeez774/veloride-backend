@@ -1,0 +1,90 @@
+{
+    "FindARide": [
+        {
+            "name": "Search Rides",
+            "about": "Search for available rides based on location, preference and time."
+        },
+        {
+            "name": "Saved Routes",
+            "about": "View previously searched or favorite routes."
+        },
+        {
+            "name": "Recommended Rides (AI-Powered)",
+            "about": "Suggested rides based on user preferences and past searches."
+        },
+        {
+            "name": "Public Transport Integration",
+            "about": "Check mixed travel options (public transport + carpooling)."
+        },
+        {
+            "name": "Voice Search",
+            "about": "Book a ride using voice commands."
+        }
+    ],
+    "OfferARide": [
+        {
+            "name": "Create Ride Offer",
+            "about": "Form to input trip details (location, timing, stops, etc.)."
+        },
+        {
+            "name": "My Offers",
+            "about": "Manage and edit active or scheduled ride offers."
+        },
+        {
+            "name": "Suggested Passengers (AI-Powered)",
+            "about": "Potential passengers based on location and preferences."
+        },
+        {
+            "name": "Dynamic Pricing Management",
+            "about": "Adjust fares based on demand and supply."
+        },
+        {
+            "name": "Voice Scheduling",
+            "about": "Offer a ride via voice command."
+        }
+    ],
+    "MyRides": [
+        {
+            "name": "Upcoming Rides",
+            "about": "List of all scheduled rides (both as passenger and driver)."
+        },
+        {
+            "name": "Past Rides",
+            "about": "Ride history with reviews and details."
+        },
+        {
+            "name": "Payments & Fare Splitting",
+            "about": "Payment history and transactions."
+        },
+        {
+            "name": "Ride Preferences",
+            "about": "Set preferences for matching (e.g., quiet ride, music type, etc.)."
+        },
+        {
+            "name": "User Reputation & Trust System",
+            "about": "View and manage ratings & reviews."
+        }
+    ],
+    "EcoStats": [
+        {
+            "name": "CO2 Savings",
+            "about": "View accumulated carbon savings and impact."
+        },
+        {
+            "name": "Green Badges & Rewards",
+            "about": "Check earned badges, discounts, and rewards."
+        },
+        {
+            "name": "Ride Statistics",
+            "about": "Breakdown of eco-friendly trips, most-used routes, etc."
+        },
+        {
+            "name": "Sustainability Tips",
+            "about": "Suggestions for improving eco-friendliness."
+        },
+        {
+            "name": "Leaderboard",
+            "about": "Compare eco-stats with other users."
+        }
+    ]
+}
