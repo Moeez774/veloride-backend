@@ -54,5 +54,6 @@ const Rides = new mongoose.Schema({
 })
 // Adding Geospatial Indexes
 Rides.index({ "rideDetails.pickupLocation.coordinates": "2dsphere" })
+Rides.index({ "rideDetails.dropoffLocation.coordinates": "2dsphere" })
 
 export const Ride = mongoose.models.Ride || mongoose.model("Ride", Rides)

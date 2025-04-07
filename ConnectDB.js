@@ -15,7 +15,7 @@ export const connectDB = async () => {
 
         await mongoose.connect(mongoUri);
 
-        await Ride.init();  
+        await Ride.init()
         console.log('Connected to MongoDB successfully!');
     } catch (error) {
         console.error('Error connecting to MongoDB:', error);

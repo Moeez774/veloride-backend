@@ -48,6 +48,7 @@ rideRouter.post('/offer-ride', async (req, res) => {
             },
             date: data.date,
             seats: data.seats,
+            bookedSeats: 0,
             time: data.time,
             vehicle: data.vehicle,
             distance: data.distance,
@@ -105,16 +106,19 @@ rideRouter.post("/fetchRides", async (req, res) => {
 
     // fetching rides near user's location
     try {
-        const rides = await Ride.find({$and: [{'userId': {$ne: userId}},
-            {'rideDetails.pickupLocation.coordinates': {
-                $near: {
-                    $geometry: {
-                        type: "Point",
-                        coordinates: userLocation,
-                    },
-                    $maxDistance: 100000,
+        const rides = await Ride.find({
+            $and: [{ 'userId': { $ne: userId } },
+            {
+                'rideDetails.pickupLocation.coordinates': {
+                    $near: {
+                        $geometry: {
+                            type: "Point",
+                            coordinates: userLocation,
+                        },
+                        $maxDistance: 100000,
+                    }
                 }
-            }}]
+            }]
         })
 
         return res.status(200).send({ message: "Rides fetched.", statusCode: 200, data: rides })
@@ -168,16 +172,178 @@ rideRouter.post("/fetchRide", async (req, res) => {
 })
 
 //for fetching user's owned rides
-rideRouter.post('/owned-rides', async(req, res) => {
+rideRouter.post('/owned-rides', async (req, res) => {
     const { userId } = req.body
-    
-    if(!userId) return res.status(404).send({ message: "Invalid user id.", statusCode: 404 })
-        try {
-            const rides = await Ride.find({ 'userId': userId })
-            return res.status(200).send({ message: "Rides Fethced.", data: rides, statusCode: 200 })
-        } catch(err) {
-            return res.status(500).send({ message: "Error in fetching user's rides: "+err, statusCode: 500 })
+
+    if (!userId) return res.status(404).send({ message: "Invalid user id.", statusCode: 404 })
+    try {
+        const rides = await Ride.find({ 'userId': userId })
+        return res.status(200).send({ message: "Rides Fethced.", data: rides, statusCode: 200 })
+    } catch (err) {
+        return res.status(500).send({ message: "Error in fetching user's rides: " + err, statusCode: 500 })
+    }
+})
+
+//for caluclating average price of two routes
+rideRouter.post('/fetchPrice', async (req, res) => {
+    const { pickupLocation, dropOffLocation, vehicle } = req.body
+
+    const vehicles = { Compact_Car: 13, Sedan: 11, SUVs: 10, Luxury_Cars: 10 }
+    const avgPassengers = { Compact_Car: 2, Sedan: 2, SUVs: 3, Luxury_Cars: 2 }
+
+    if (vehicle === '') return res.status(404).send({ message: "Vehicle type not selected. Please choose one to proceed.", statusCode: 404 })
+
+    const accessToken = 'pk.eyJ1IjoibW9lZXoxMjMiLCJhIjoiY204Z3p3cHNrMDUxbjJrcjhvbGYxanU2MyJ9.ErFjedlF8xF7QZQmyTnIiw';
+
+    try {
+        // fetching distance from pickup route to dropoff
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupLocation.long},${pickupLocation.lat};${dropOffLocation.long},${dropOffLocation.lat}?access_token=${accessToken}`
+
+        const info = await fetch(url)
+        const jsonInfo = await info.json()
+
+        if (jsonInfo.code === 'Ok') {
+            const route = jsonInfo.routes[0];
+            const distance = (route.distance / 1000).toFixed(2)
+            const fuelPrice = 256.63
+            const realVehicle = vehicle.split(" ").join("_")
+
+            //calculating fuel prices
+            const totalFuelInLitre = distance / vehicles[realVehicle]
+            const fuelCost = totalFuelInLitre * fuelPrice
+            const price = Math.round(fuelCost * 1.10)
+            const avgFare = Math.round(price / avgPassengers[realVehicle])
+
+            return res.status(200).send({ message: "Price fetched", price: price, avgFare: avgFare, statusCode: 200 })
+
         }
+        else {
+            return res.status(500).send({ message: "No average fare found for these routes. Please select valid locations.", statusCode: 500 })
+        }
+    } catch (err) {
+        return res.status(500).send({ message: "Error fetching price for these routes, Please select your locations again." + err, statusCode: 500 })
+    }
+})
+
+//function for macthing best ride
+function findRide(rides, data) {
+    const bestRides = rides.filter(ride => {
+        const rideDate = new Date(ride.rideDetails.date).toISOString().split("T")[0]
+        const preferredDate = String(data.date).split("T")[0]
+        const rideTime = `${rideDate} ${ride.rideDetails.time}`
+        const preferredTime = `${preferredDate} ${data.time}`
+
+        //comverting in milliseconds for checking near user's time rides
+        const rideDateInMs = new Date(rideTime).getTime()
+        const preferredDateInMs = new Date(preferredTime).getTime()
+
+        //appliying conditions for best match
+        const withInTimeRange = (rideDateInMs >= preferredDateInMs) && (rideDateInMs - preferredDateInMs <= 86400000)
+        const validBudget = data.price + 100
+        const withinBudget = ride.budget.totalBudget <= validBudget
+        const withinSeats = (ride.rideDetails.seats - ride.rideDetails.bookedSeats) >= data.passengers
+
+        return withInTimeRange && withinBudget && withinSeats
+    })
+
+    return bestRides
+}
+
+//for fetching cheapest rides
+function fetchCheapest(rides) {
+    // for taking cheapest rides
+    let sortedRides = rides.map(ride => ride)
+    sortedRides.sort((a, b) => a.budget.totalBudget - b.budget.totalBudget)
+
+    const cheapestRides = sortedRides.length / 2
+    sortedRides = sortedRides.map((ride, index) => {
+        if (sortedRides.length === 1 || index + 1 <= cheapestRides) return ride
+    })
+    return sortedRides
+}
+
+//for fetching preference based rides
+function fetchPreferred(rides, data) {
+    const preferredRides = rides.filter((ride) => {
+        const luggageAllowed = ride.preferences.ridePreferences.luggageAllowed === data.luggage
+        const petAllowed = ride.preferences.ridePreferences.petAllowed === data.petFriendly
+        const smokingAllowed = ride.preferences.ridePreferences.smokingAllowed === data.smoking
+        const needs = ride.preferences.needs.wheelchairAccess === data.needs
+
+        return luggageAllowed && petAllowed && smokingAllowed && needs
+    })
+
+    return preferredRides
+}
+
+//finding best ride according to user's search
+rideRouter.post('/find-ride', async (req, res) => {
+    const { data } = req.body
+
+    try {
+
+        const pickupCoordinates = [data.location.long, data.location.lat]
+        const dropoffCoordinates = [data.dropLocation.long, data.dropLocation.lat]
+
+        // first checking any ride mathcing these coordinates
+        const rides = await Ride.find({ $and: [{ 'rideDetails.pickupLocation.pickupName': { $eq: data.pickup } }, { 'rideDetails.dropoffLocation.dropoffName': { $eq: data.drop } }] })
+
+        const matchedRides = findRide(rides, data)
+
+        // if not then showing near rides for almost these routes
+        if (matchedRides.length === 0) {
+            const pickupRides = await Ride.find({
+                'rideDetails.pickupLocation.coordinates': {
+                    $near: {
+                        $geometry: {
+                            type: "Point",
+                            coordinates: pickupCoordinates,
+                        },
+                        $maxDistance: 100000,
+                    }
+                }
+            })
+
+            const dropoffRides = await Ride.find({
+                'rideDetails.dropoffLocation.coordinates': {
+                    $near: {
+                        $geometry: {
+                            type: "Point",
+                            coordinates: dropoffCoordinates,
+                        },
+                        $maxDistance: 100000,
+                    }
+                }
+            })
+
+            //checking both pickup and dropoff rides whther any ride have these pickup and dropoff location near user's routes
+            const matchedRides = pickupRides.filter(pickupRide => {
+                return dropoffRides.some(dropoffRide => dropoffRide.rideId === pickupRide.rideId);
+            })
+
+            if (matchedRides.length === 0) return res.status(404).send({ message: "Sorry, no exact routes or nearby rides were found for your selected locations.", statusCode: 404 })
+
+            //for finding near best ride according to user's preferences
+            const bestRides = findRide(matchedRides, data)
+
+            if (bestRides.length === 0) return res.status(404).send({ message: "Sorry, no rides were found matching your preferred time, date, or budget.", statusCode: 404 })
+
+            const sortedRides = fetchCheapest(bestRides)
+            const preferredRides = fetchPreferred(bestRides, data)
+
+            return res.status(200).send({ message: "Perfect rides matched.", rides: bestRides, cheapest: sortedRides, preferred: preferredRides, found: false, statusCode: 200 })
+
+        }
+
+        const sortedRides = fetchCheapest(matchedRides)
+        const preferredRides = fetchPreferred(matchedRides, data)
+
+        return res.status(200).send({ message: "Matched Rides Fetched successfully.", rides: matchedRides, cheapest: sortedRides, preferred: preferredRides, found: true, statusCode: 200 })
+
+    } catch (err) {
+        return res.status(500).send({ message: "Error in fetching rides, Please try again." + err, statusCode: 500 })
+    }
+
 })
 
 export default rideRouter
