@@ -11,7 +11,8 @@ const Users = new mongoose.Schema({
     photo: String,
     isAgree: Boolean,
     isProvider: Boolean,
-    contacts: [Object]
+    contacts: [Object],
+    gender: String
 })
 
 export const User = mongoose.models.User || mongoose.model("User", Users)

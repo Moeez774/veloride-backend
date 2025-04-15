@@ -2,23 +2,28 @@
     "FindARide": [
         {
             "name": "Search Rides",
-            "about": "Search for available rides based on location, preference and time."
+            "about": "Search for available rides based on location, preference and time.",
+            "link": "/find-ride"
         },
         {
             "name": "Saved Routes",
-            "about": "View previously searched or favorite routes."
+            "about": "View previously searched or favorite routes.",
+            "link": "/find-ride/saved-routes"
         },
         {
             "name": "Recommended Rides (AI-Powered)",
-            "about": "Suggested rides based on user preferences and past searches."
+            "about": "Suggested rides based on user preferences and past searches.",
+            "link": "/find-ride/saved-routes"
         },
         {
             "name": "Public Transport Integration",
-            "about": "Check mixed travel options (public transport + carpooling)."
+            "about": "Check mixed travel options (public transport + carpooling).",
+            "link": "/find-ride/saved-routes"
         },
         {
             "name": "Voice Search",
-            "about": "Book a ride using voice commands."
+            "about": "Book a ride using voice commands.",
+            "link": "/find-ride/saved-routes"
         }
     ],
     "OfferARide": [

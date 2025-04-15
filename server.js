@@ -8,6 +8,7 @@ import rideRouter from './routes/ridesRoutes.js'
 import { connectDB } from './ConnectDB.js'
 import { Server } from 'socket.io'
 import messageRouter from './routes/messageRoutes.js'
+import savedRoutes from './routes/savedRoutes.js'
 import fileRouter from './routes/uploadFilesRoutes/uploadfile.js'
 
 const app = express()
@@ -28,6 +29,7 @@ app.use('/data', dataRouter)
 app.use('/rides', rideRouter)
 app.use('/messages', messageRouter)
 app.use('/files', fileRouter)
+app.use('/saved-routes', savedRoutes)
 
 // asigning methods and port from where method will get
 const io = new Server(server, {

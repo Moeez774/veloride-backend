@@ -13,10 +13,10 @@ connectDB()
 const sectretKey = Key
 
 router.post('/sign-up', async (req, res) => {
-    const { _id, fullname, email, pass, confirmPass, number, city, remember, photo, isAgree, isProvider } = req.body;
+    const { _id, fullname, email, pass, confirmPass, number, city, remember, photo, isAgree, isProvider, gender } = req.body;
 
     // Validate if any field is empty
-    if (!fullname || !email || !pass || !confirmPass || !number || !city || !isAgree) {
+    if (!fullname || !email || !pass || !confirmPass || !number || !city || !isAgree || gender==='') {
         return res.status(400).send({ message: "Please fill in all the required fields.", statusCode: 400 })
     }
 
@@ -38,7 +38,7 @@ router.post('/sign-up', async (req, res) => {
     if (!user) {
         try {
             const hashedPass = await bcrypt.hash(pass, 10);
-            const newUser = new User({ _id, fullname, email, pass: hashedPass, number, city, remember, photo, isAgree, isProvider });
+            const newUser = new User({ _id, fullname, email, pass: hashedPass, number, city, remember, photo, isAgree, isProvider, gender })
             await newUser.save()
 
             const key = new TextEncoder().encode(process.env.SECRET_KEY)
@@ -219,7 +219,7 @@ router.get('/log-out', async (req, res) => {
 })
 
 router.post('/providers-sign-in', async (req, res) => {
-    const { _id, fullname, email, pass, number, city, remember, photo, isAgree, isProvider } = req.body
+    const { _id, fullname, email, pass, number, city, remember, photo, isAgree, isProvider, gender } = req.body
 
     // Check if user with the same email exists
     const user = await User.findOne({ '_id': _id });
@@ -228,7 +228,7 @@ router.post('/providers-sign-in', async (req, res) => {
         if (!user) {
 
             // for validating phone number
-            if (number === '' || city === '' || !isAgree) {
+            if (number === '' || city === '' || !isAgree || gender==="") {
                 return res.status(400).send({ message: "Please fill in all the required fields.", statusCode: 400 })
             }
 
@@ -237,7 +237,7 @@ router.post('/providers-sign-in', async (req, res) => {
                 if (Number.isNaN(n)) return res.status(404).send({ message: "Invalid phone number.", statusCode: 404 })
             }
 
-            const newUser = new User({ _id, fullname, email, pass: pass, number, city, remember, photo, isAgree, isProvider });
+            const newUser = new User({ _id, fullname, email, pass: pass, number, city, remember, photo, isAgree, isProvider, gender });
             await newUser.save()
         }
 
@@ -310,6 +310,25 @@ router.post('/reset-password', async (req, res) => {
     } catch (err) {
         return res.status(500).send({ message: "Error resetting password, Please try again.", statusCode: 500 })
     }
+})
+
+//for checking user existance with provided email
+router.post('/user-existance', async(req, res) => {
+    const { email } = req.body
+
+    if(!email.endsWith("@gmail.com")) return res.status(404).send({ message: "Invalid email address.", statusCode: 404 })
+
+        try {
+
+            const user = await User.findOne({ 'email': email })
+
+            if(user!=null) return res.status(400).send({ message: "User with same email address already exist.", statusCode: 400 })
+
+            return res.status(200).send({ message: "Checked successfully.", statusCode: 200 })
+
+        } catch(err) {
+            return res.status(500).send({ message: "Internal error happened, Please try again."+err, statusCode: 500 })
+        }
 })
 
 export default router;

@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { Ride } from '../models/ride.js'
 import { connectDB } from '../ConnectDB.js'
-import { User } from '../models/user.js'
 import { jwtVerify } from 'jose'
+import { SavedRoute } from '../models/savedroutes.js'
+import { CompletedRide } from '../models/completedrides.js'
+import { v4 as uuidv4 } from 'uuid'
 
 const rideRouter = Router()
 
@@ -12,7 +14,7 @@ rideRouter.post('/offer-ride', async (req, res) => {
     const { data } = req.body
 
     // returning error if all fields are not filled properly
-    if (data.pickupName === '' || data.dropoffLocation === '' || data.date === '' || data.time === '' || data.vehicle === '' || data.totalBudget === '' || (!data.number && !data.email)) {
+    if (data.pickupName === '' || data.dropoffLocation === '' || data.date === '' || data.time === '' || data.vehicle === '' || (!data.number && !data.email)) {
         return res.status(404).send({ message: "Please fill out all required fields for proceeding.", statusCode: 404 })
     }
 
@@ -63,18 +65,13 @@ rideRouter.post('/offer-ride', async (req, res) => {
                 petAllowed: data.petAllowed,
                 smokingAllowed: data.smokingAllowed,
             },
-            needs: {
-                wheelchairAccess: data.wheelchairAccess
-            },
             gender: data.gender,
         },
 
         //budget details
         budget: {
-            totalBudget: parseInt(data.totalBudget, 10),
+            totalBudget: data.totalBudget,
             negotiate: data.negotiate,
-            recurring: data.recurring,
-            recurringVal: data.recurringVal,
         },
 
         //additonal info
@@ -162,8 +159,9 @@ rideRouter.post("/fetchRide", async (req, res) => {
     try {
 
         const ride = await Ride.findOne({ '_id': rideId })
+        const completedRide = await CompletedRide.findOne({ 'rideId': rideId })
 
-        return res.status(200).send({ message: "Ride data fetched.", data: ride, statusCode: 200 })
+        return res.status(200).send({ message: "Ride data fetched.", data: ride, completedRide: completedRide, statusCode: 200 })
 
     } catch (err) {
         return res.status(500).send({ message: "Error in fetching ride's data, Please try again.", statusCode: 500 })
@@ -189,7 +187,6 @@ rideRouter.post('/fetchPrice', async (req, res) => {
     const { pickupLocation, dropOffLocation, vehicle } = req.body
 
     const vehicles = { Compact_Car: 13, Sedan: 11, SUVs: 10, Luxury_Cars: 10 }
-    const avgPassengers = { Compact_Car: 2, Sedan: 2, SUVs: 3, Luxury_Cars: 2 }
 
     if (vehicle === '') return res.status(404).send({ message: "Vehicle type not selected. Please choose one to proceed.", statusCode: 404 })
 
@@ -212,10 +209,38 @@ rideRouter.post('/fetchPrice', async (req, res) => {
             const totalFuelInLitre = distance / vehicles[realVehicle]
             const fuelCost = totalFuelInLitre * fuelPrice
             const price = Math.round(fuelCost * 1.10)
-            const avgFare = Math.round(price / avgPassengers[realVehicle])
 
-            return res.status(200).send({ message: "Price fetched", price: price, avgFare: avgFare, statusCode: 200 })
+            //fare by bookedSeats
+            const withZero = Math.round(price / (0 + 1.5))
+            const withOne = Math.round(price / (1 + 1.5))
+            const withTwo = Math.round(price / (2 + 1.5))
+            const withThree = Math.round(price / (3 + 1.5))
+            const withFour = Math.round(price / (4 + 1.5))
 
+            const allFares = [
+                {
+                bookedSeats: 0,
+                fare: withZero
+            },
+            {
+                bookedSeats: 1,
+                fare: withOne
+            },
+            {
+                bookedSeats: 2,
+                fare: withTwo
+            },
+            {
+                bookedSeats: 3,
+                fare: withThree
+            },
+            {
+                bookedSeats: 4,
+                fare: withFour
+            }
+            ]
+
+            return res.status(200).send({ message: "Price fetched", price: price, allFares: allFares, statusCode: 200 })
         }
         else {
             return res.status(500).send({ message: "No average fare found for these routes. Please select valid locations.", statusCode: 500 })
@@ -239,8 +264,9 @@ function findRide(rides, data) {
 
         //appliying conditions for best match
         const withInTimeRange = (rideDateInMs >= preferredDateInMs) && (rideDateInMs - preferredDateInMs <= 86400000)
-        const validBudget = data.price + 100
-        const withinBudget = ride.budget.totalBudget <= validBudget
+        const validBudget = Math.round(data.price * 1.10)
+        const activeFare = ride.budget.totalBudget / (ride.rideDetails.bookedSeats + 1.5)
+        const withinBudget = activeFare <= validBudget
         const withinSeats = (ride.rideDetails.seats - ride.rideDetails.bookedSeats) >= data.passengers
 
         return withInTimeRange && withinBudget && withinSeats
@@ -252,7 +278,7 @@ function findRide(rides, data) {
 //for fetching cheapest rides
 function fetchCheapest(rides) {
     // for taking cheapest rides
-    let sortedRides = rides.map(ride => ride)
+    let sortedRides = rides.filter(ride => ride)
     sortedRides.sort((a, b) => a.budget.totalBudget - b.budget.totalBudget)
 
     const cheapestRides = sortedRides.length / 2
@@ -268,12 +294,56 @@ function fetchPreferred(rides, data) {
         const luggageAllowed = ride.preferences.ridePreferences.luggageAllowed === data.luggage
         const petAllowed = ride.preferences.ridePreferences.petAllowed === data.petFriendly
         const smokingAllowed = ride.preferences.ridePreferences.smokingAllowed === data.smoking
-        const needs = ride.preferences.needs.wheelchairAccess === data.needs
+        const rideType = ride.preferences.rideType===data.rideType
 
-        return luggageAllowed && petAllowed && smokingAllowed && needs
+        if(data.gender==="Female") {
+            const isFemale = data.gender===ride.preferences.gender
+
+            return luggageAllowed && petAllowed && smokingAllowed && rideType && isFemale
+        }
+
+        return luggageAllowed && petAllowed && smokingAllowed && rideType
     })
 
     return preferredRides
+}
+
+//for saving searched rides
+async function saveSearched(data, rides) {
+    const searched = rides.map(async(ride) => {
+        const token = uuidv4() // generating unqiue token for ride
+
+        const searchedRoute = {
+            _id: `${data.userId}-${ride._id}`,
+            userId: data.userId,
+            token: token,
+            rideId: ride._id,
+            from: {
+                type: "Point",
+                name: ride.rideDetails.pickupLocation.pickupName,
+                coordinates: ride.rideDetails.pickupLocation.coordinates
+            },
+            to: {
+                type: "Point",
+                name: ride.rideDetails.dropoffLocation.dropoffName,
+                coordinates: ride.rideDetails.dropoffLocation.coordinates
+            },
+            date: ride.rideDetails.date,
+            time: ride.rideDetails.time,
+            vehicle: ride.rideDetails.vehicle,
+            currentFare: ride.budget.totalBudget / (ride.rideDetails.bookedSeats + 1.5),
+            seats: ride.rideDetails.seats,
+            bookedSeats: ride.rideDetails.bookedSeats,
+            isCompleted: false,
+            isFavorite: false
+        }
+
+        await SavedRoute.updateOne({ '_id': `${data.userId}-${ride._id}` }, {
+            $set: searchedRoute
+        }, { upsert: true })
+    })
+
+    await Promise.all(searched)
 }
 
 //finding best ride according to user's search
@@ -331,12 +401,16 @@ rideRouter.post('/find-ride', async (req, res) => {
             const sortedRides = fetchCheapest(bestRides)
             const preferredRides = fetchPreferred(bestRides, data)
 
+            await saveSearched(data, bestRides)
+
             return res.status(200).send({ message: "Perfect rides matched.", rides: bestRides, cheapest: sortedRides, preferred: preferredRides, found: false, statusCode: 200 })
 
         }
 
         const sortedRides = fetchCheapest(matchedRides)
         const preferredRides = fetchPreferred(matchedRides, data)
+
+        await saveSearched(data, matchedRides)
 
         return res.status(200).send({ message: "Matched Rides Fetched successfully.", rides: matchedRides, cheapest: sortedRides, preferred: preferredRides, found: true, statusCode: 200 })
 

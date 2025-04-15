@@ -1,18 +1,16 @@
 import mongoose, { mongo } from "mongoose";
 
-const Rides = new mongoose.Schema({
+const CompletedRides = new mongoose.Schema({
     _id: String,
     userId: String,
     driverName: { type: String, required: true },
 
     rideDetails: {
         pickupLocation: {
-            type: { type: String, required: true, default: 'Point' },
             pickupName: { type: String, required: true },
             coordinates: { type: [Number], required: true }
         },
         dropoffLocation: {
-            type: { type: String, required: true, default: 'Point' },
             dropoffName: { type: String, required: true },
             coordinates: { type: [Number], required: true }
         },
@@ -47,8 +45,5 @@ const Rides = new mongoose.Schema({
         }
     }
 })
-// Adding Geospatial Indexes
-Rides.index({ "rideDetails.pickupLocation.coordinates": "2dsphere" })
-Rides.index({ "rideDetails.dropoffLocation.coordinates": "2dsphere" })
 
-export const Ride = mongoose.models.Ride || mongoose.model("Ride", Rides)
+export const CompletedRide = mongoose.models.CompletedRide || mongoose.model("CompletedRides", CompletedRides)
